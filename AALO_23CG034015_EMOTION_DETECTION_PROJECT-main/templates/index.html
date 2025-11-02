@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Emotion Detection</title>
+  <style>
+    :root{--accent:#2b7cff;--bg:#f6f8fb;--card:#ffffff;--muted:#666}
+    html,body{height:100%;margin:0;font-family:Segoe UI, Roboto, Arial, sans-serif;background:var(--bg);color:#111}
+    .container{max-width:980px;margin:28px auto;padding:20px}
+    header{display:flex;align-items:center;gap:16px}
+    header h1{margin:0;font-size:1.4rem}
+    .grid{display:grid;grid-template-columns:1fr 360px;gap:18px;margin-top:18px}
+    .card{background:var(--card);padding:16px;border-radius:10px;box-shadow:0 6px 18px rgba(19,24,44,0.06)}
+    .uploader{display:flex;flex-direction:column;gap:12px}
+    .file-row{display:flex;gap:8px;align-items:center}
+    input[type=file]{display:none}
+    .btn{background:var(--accent);color:#fff;border:none;padding:8px 12px;border-radius:8px;cursor:pointer}
+    .btn.secondary{background:#e8eefc;color:var(--accent);border:1px solid rgba(43,124,255,0.12)}
+    label.file-label{display:inline-block;padding:8px 12px;border-radius:8px;background:#fff;border:1px dashed #d7e2fb;color:var(--muted);cursor:pointer}
+    .video-wrap{display:flex;flex-direction:column;gap:10px;align-items:center}
+    video#video{width:100%;height:auto;border-radius:8px;background:#000}
+    #outputImage{max-width:100%;border-radius:8px;border:1px solid #eee}
+    .result-title{font-weight:600;margin-bottom:6px}
+    .result-box{min-height:56px;display:flex;align-items:center;gap:12px}
+    .muted{color:var(--muted)}
+    @media (max-width:920px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Emotion Detection Web App</h1>
+      <div style="margin-left:auto" class="muted">Model: <strong>emotion_model.h5</strong></div>
+    </header>
+
+    <div class="grid">
+      <section class="card">
+        <h2 style="margin-top:0">Input</h2>
+
+        <div class="uploader">
+          <div>
+            <div class="result-title">Upload an Image</div>
+            <div class="file-row">
+              <label for="fileInput" class="file-label">Choose image…</label>
+              <input type="file" id="fileInput" accept="image/*">
+              <button class="btn" onclick="uploadImage()">Predict</button>
+            </div>
+            <div class="muted" style="margin-top:6px">Accepted: jpg, png. Max size: server-configured.</div>
+          </div>
+
+          <hr style="border:none;border-top:1px solid #eef3fb;margin:6px 0">
+
+          <div>
+            <div class="result-title">Or use your webcam</div>
+            <div class="video-wrap">
+              <video id="video" width="320" height="240" autoplay playsinline></video>
+              <div style="display:flex;gap:8px">
+                <button class="btn secondary" onclick="captureWebcam()">Capture & Predict</button>
+              </div>
+              <div class="muted">Allow camera access when prompted.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="card">
+        <h2 style="margin-top:0">Result</h2>
+        <div id="result" class="result-box muted">No prediction yet.</div>
+        <div style="margin-top:12px">
+          <img id="outputImage" src="" alt="Predicted output image">
+        </div>
+      </aside>
+    </div>
+  </div>
+
+<script>
+  // --- Webcam setup ---
+  const video = document.getElementById('video')
+  navigator.mediaDevices.getUserMedia({ video: true })
+    .then(stream => video.srcObject = stream)
+    .catch(err => alert('Webcam not accessible: ' + err))
+
+  // Log video dimensions when ready
+  video.addEventListener('loadedmetadata', () => {
+      console.log('Video dimensions:', video.videoWidth, video.videoHeight);
+  });
+
+  function uploadImage(){
+    const fileInput = document.getElementById('fileInput')
+    if(fileInput.files.length === 0){
+      alert('Please upload an image')
+      return
+    }
+    const formData = new FormData()
+    formData.append('file', fileInput.files[0])
+
+    fetch('/predict', { method:'POST', body: formData })
+      .then(res => res.json())
+      .then(data => displayResult(data))
+      .catch(err => alert('Error: ' + err))
+  }
+
+  function captureWebcam(){
+  const canvas = document.createElement('canvas')
+  // Capture at full webcam resolution
+  canvas.width = video.videoWidth
+  canvas.height = video.videoHeight
+  const ctx = canvas.getContext('2d')
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+  const dataURL = canvas.toDataURL('image/jpeg') // base64
+
+  fetch('/predict', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ webcam: dataURL })
+  })
+  .then(res => res.json())
+  .then(data => displayResult(data))
+  .catch(err => alert('Error: ' + err))
+}
+
+  function displayResult(data){
+    if(data.error){
+      document.getElementById('result').innerText = data.error
+      document.getElementById('outputImage').src = ''
+    } else {
+      document.getElementById('result').innerText = 'Predicted Emotion: ' + data.emotion
+      document.getElementById('outputImage').src = 'data:image/jpeg;base64,' + data.image
+    }
+  }
+</script>
+</body>
+</html>
